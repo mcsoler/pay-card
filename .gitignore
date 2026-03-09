@@ -1,0 +1,23 @@
+# Environment files
+.env
+.env.local
+.env.production
+
+# Ruby
+backend/vendor/
+backend/.bundle/
+backend/log/
+backend/tmp/
+backend/coverage/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

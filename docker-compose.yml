@@ -1,0 +1,70 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pay_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       pay_production
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/app/infrastructure/database/init:/docker-entrypoint-initdb.d
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pay_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      RACK_ENV:              production
+      DB_HOST:               db
+      DB_PORT:               5432
+      DB_NAME:               pay_production
+      DB_USER:               postgres
+      DB_PASSWORD:           postgres
+      JWT_SECRET:            ${JWT_SECRET:-super_secret_jwt_key_change_in_prod}
+      JWT_EXPIRATION_HOURS:  24
+      WOMPI_PUBLIC_KEY:      ${WOMPI_PUBLIC_KEY:-pub_stagtest_g2u0HQd3ZMh05hsSgTS2lUV8t3s4mOt7}
+      WOMPI_PRIVATE_KEY:     ${WOMPI_PRIVATE_KEY:-prv_stagtest_5i0ZGIGiFcDQifYsXxvsny7Y37tKqFWg}
+      WOMPI_EVENTS_SECRET:   ${WOMPI_EVENTS_SECRET:-stagtest_events_2PDUmhMywUkvb1LvxYnayFbmofT7w39N}
+      WOMPI_INTEGRITY_SECRET: ${WOMPI_INTEGRITY_SECRET:-stagtest_integrity_nAIBuqayW70XpUqJS4qf4STYiISd89Fp}
+      WOMPI_API_URL:         https://api-sandbox.co.uat.wompi.dev/v1
+      ALLOWED_ORIGINS:       http://localhost:8080
+      PORT:                  4567
+    ports:
+      - '4567:4567'
+    command: >
+      sh -c "bundle exec ruby app/infrastructure/database/migrate.rb &&
+             bundle exec ruby app/infrastructure/database/seeds.rb &&
+             bundle exec puma -C config/puma.rb"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pay_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '8080:80'
+    environment:
+      VITE_API_URL:         http://localhost:4567/api
+      VITE_WOMPI_PUBLIC_KEY: ${WOMPI_PUBLIC_KEY:-pub_stagtest_g2u0HQd3ZMh05hsSgTS2lUV8t3s4mOt7}
+
+volumes:
+  postgres_data:
