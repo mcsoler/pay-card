@@ -3,6 +3,7 @@
 require 'faraday'
 require 'faraday/retry'
 require 'json'
+require 'digest'
 require_relative '../../domain/ports/payment_gateway'
 require_relative '../../domain/errors'
 
@@ -11,19 +12,27 @@ module Adapters
     class WompiClient
       include Domain::Ports::PaymentGateway
 
-      def initialize(api_url: nil, private_key: nil)
-        @api_url     = api_url     || ENV.fetch('WOMPI_API_URL', 'https://api-sandbox.co.uat.wompi.dev/v1')
-        @private_key = private_key || ENV.fetch('WOMPI_PRIVATE_KEY')
+      def initialize(api_url: nil, private_key: nil, public_key: nil, integrity_secret: nil)
+        @api_url          = api_url          || ENV.fetch('WOMPI_API_URL', 'https://api-sandbox.co.uat.wompi.dev/v1')
+        @private_key      = private_key      || ENV.fetch('WOMPI_PRIVATE_KEY')
+        @public_key       = public_key       || ENV.fetch('WOMPI_PUBLIC_KEY')
+        @integrity_secret = integrity_secret || ENV.fetch('WOMPI_INTEGRITY_SECRET')
       end
 
       def charge(amount:, card_token:, customer_email:, installments:, reference:)
+        amount_in_cents  = amount.to_i
+        acceptance_token = fetch_acceptance_token
+        integrity_sig    = build_integrity_signature(reference, amount_in_cents, 'COP')
+
         response = connection.post('/v1/transactions') do |req|
           req.body = build_payload(
-            amount:         amount,
-            card_token:     card_token,
-            customer_email: customer_email,
-            installments:   installments,
-            reference:      reference
+            amount_in_cents:  amount_in_cents,
+            card_token:       card_token,
+            customer_email:   customer_email,
+            installments:     installments,
+            reference:        reference,
+            acceptance_token: acceptance_token,
+            integrity:        integrity_sig
           ).to_json
         end
 
@@ -45,16 +54,41 @@ module Adapters
         end
       end
 
-      def build_payload(amount:, card_token:, customer_email:, installments:, reference:)
+      def public_connection
+        @public_connection ||= Faraday.new(url: @api_url) do |f|
+          f.response :json
+          f.adapter  Faraday.default_adapter
+        end
+      end
+
+      # Wompi requires an acceptance_token from the merchant endpoint
+      def fetch_acceptance_token
+        response = public_connection.get("/v1/merchants/#{@public_key}")
+        data     = response.body.is_a?(Hash) ? response.body : JSON.parse(response.body)
+        data.dig('data', 'presigned_acceptance', 'acceptance_token')
+      rescue StandardError
+        nil
+      end
+
+      # SHA256(reference + amount_in_cents + currency + integrity_secret)
+      def build_integrity_signature(reference, amount_in_cents, currency)
+        raw = "#{reference}#{amount_in_cents}#{currency}#{@integrity_secret}"
+        Digest::SHA256.hexdigest(raw)
+      end
+
+      def build_payload(amount_in_cents:, card_token:, customer_email:, installments:,
+                        reference:, acceptance_token:, integrity:)
         {
-          amount_in_cents:  (amount.to_f * 100).to_i,
+          amount_in_cents:  amount_in_cents,
           currency:         'COP',
           customer_email:   customer_email,
           reference:        reference,
+          acceptance_token: acceptance_token,
+          signature:        integrity,
           payment_method: {
-            type:               'CARD',
-            token:              card_token,
-            installments:       installments
+            type:         'CARD',
+            token:        card_token,
+            installments: installments
           }
         }
       end
@@ -64,7 +98,7 @@ module Adapters
           raise Domain::Errors::PaymentError, "Wompi error #{response.status}: #{response.body}"
         end
 
-        data = response.body.is_a?(Hash) ? response.body : JSON.parse(response.body)
+        data             = response.body.is_a?(Hash) ? response.body : JSON.parse(response.body)
         transaction_data = data['data'] || data
 
         {

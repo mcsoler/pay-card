@@ -21,7 +21,10 @@ class TransactionsController < ApplicationController
       @process_payment_use_case ||= Domain::UseCases::ProcessPayment.new(
         transaction_repository: Adapters::Repositories::TransactionRepository.new(db: DB),
         product_repository:     Adapters::Repositories::ProductRepository.new(db: DB),
-        payment_gateway:        Adapters::Http::WompiClient.new
+        payment_gateway:        Adapters::Http::WompiClient.new(
+          public_key:       ENV.fetch('WOMPI_PUBLIC_KEY'),
+          integrity_secret: ENV.fetch('WOMPI_INTEGRITY_SECRET')
+        )
       )
     end
 
