@@ -27,7 +27,7 @@ module Adapters
       end
 
       def charge(amount:, card_token:, customer_email:, installments:, reference:)
-        amount_in_cents  = amount.to_i
+        amount_in_cents  = (amount.to_f * 100).round
         acceptance_token = fetch_acceptance_token
         integrity_sig    = build_integrity_signature(reference, amount_in_cents, 'COP')
 

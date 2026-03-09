@@ -72,6 +72,29 @@ RSpec.describe Adapters::Http::WompiClient do
       end
     end
 
+    context 'amount conversion to cents' do
+      it 'multiplies the COP amount by 100 before sending amount_in_cents to Wompi' do
+        requested_body = nil
+        stub_request(:post, 'https://api-sandbox.co.uat.wompi.dev/v1/transactions')
+          .with { |req| requested_body = JSON.parse(req.body); true }
+          .to_return(
+            status:  201,
+            body:    { 'data' => { 'id' => 'w-cents', 'status' => 'PENDING' } }.to_json,
+            headers: { 'Content-Type' => 'application/json' }
+          )
+
+        client.charge(
+          amount:         9_318_970,
+          card_token:     'tok',
+          customer_email: 'a@b.com',
+          installments:   1,
+          reference:      'ref-cents'
+        )
+
+        expect(requested_body['amount_in_cents']).to eq(931_897_000)
+      end
+    end
+
     context 'when the network fails' do
       before do
         stub_request(:post, 'https://api-sandbox.co.uat.wompi.dev/v1/transactions')

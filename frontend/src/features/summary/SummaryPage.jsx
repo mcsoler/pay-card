@@ -5,7 +5,7 @@ import {
   selectProduct, selectCustomer, selectCardToken,
   selectDelivery, selectTransaction, setPaymentStatus, setTransaction
 } from '../../store/checkoutSlice'
-import { createTransaction, getTransactionStatus } from '../../services/apiService'
+import { createTransaction, getTransactionStatus, updateTransaction } from '../../services/apiService'
 import CurrencyDisplay from '../../components/CurrencyDisplay'
 import Spinner from '../../components/Spinner'
 import { maskCardNumber } from '../../services/cardValidator'
@@ -63,6 +63,11 @@ export default function SummaryPage() {
 
       dispatch(setTransaction({ ...transaction, ...result, status: finalStatus }))
       dispatch(setPaymentStatus(finalStatus))
+
+      if (result.transaction_id) {
+        await updateTransaction(result.transaction_id, { status: finalStatus })
+      }
+
       navigate('/result')
     } catch (err) {
       const message = err?.response?.data?.error || err.message || 'Error al procesar el pago'

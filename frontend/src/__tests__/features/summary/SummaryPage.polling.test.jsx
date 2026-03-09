@@ -85,6 +85,36 @@ describe('SummaryPage — polling behavior', () => {
     expect(apiService.getTransactionStatus).not.toHaveBeenCalled()
   })
 
+  it('calls updateTransaction with the final status after polling resolves', async () => {
+    apiService.createTransaction.mockResolvedValue({ status: 'PENDING', wompi_id: 'w-123', transaction_id: 1 })
+    apiService.getTransactionStatus.mockResolvedValue({ status: 'APPROVED', id: 'w-123' })
+    apiService.updateTransaction.mockResolvedValue({ id: 1, status: 'APPROVED' })
+
+    renderSummary()
+    fireEvent.click(screen.getByRole('button', { name: /pagar/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('result-page')).toBeInTheDocument()
+    })
+
+    expect(apiService.updateTransaction).toHaveBeenCalledWith(1, { status: 'APPROVED' })
+  })
+
+  it('calls updateTransaction with ERROR status when Wompi returns ERROR', async () => {
+    apiService.createTransaction.mockResolvedValue({ status: 'PENDING', wompi_id: 'w-err', transaction_id: 7 })
+    apiService.getTransactionStatus.mockResolvedValue({ status: 'ERROR', id: 'w-err' })
+    apiService.updateTransaction.mockResolvedValue({ id: 7, status: 'ERROR' })
+
+    renderSummary()
+    fireEvent.click(screen.getByRole('button', { name: /pagar/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('result-page')).toBeInTheDocument()
+    })
+
+    expect(apiService.updateTransaction).toHaveBeenCalledWith(7, { status: 'ERROR' })
+  })
+
   it('disables pay button while processing', async () => {
     let resolveCreate
     apiService.createTransaction.mockImplementation(
