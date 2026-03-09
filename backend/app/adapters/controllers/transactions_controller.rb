@@ -6,6 +6,7 @@ require_relative '../../domain/use_cases/process_payment'
 require_relative '../../domain/use_cases/update_transaction'
 require_relative '../repositories/transaction_repository'
 require_relative '../repositories/product_repository'
+require_relative '../repositories/customer_repository'
 require_relative '../http/wompi_client'
 
 class TransactionsController < ApplicationController
@@ -42,6 +43,10 @@ class TransactionsController < ApplicationController
 
     body_params = parsed_body.merge(customer_id: current_customer_id)
 
+    # Fetch customer email from DB (not trusted from request body)
+    customer     = Adapters::Repositories::CustomerRepository.new(db: DB).find_by_id(current_customer_id)
+    customer_email = customer&.email
+
     # Step 1: Create PENDING transaction
     tx_result = self.class.create_transaction_use_case.call(params: body_params)
     unless tx_result.success?
@@ -58,7 +63,7 @@ class TransactionsController < ApplicationController
         transaction_id: transaction.id,
         card_token:     body_params[:card_token],
         installments:   body_params[:installments] || 1,
-        customer_email: body_params[:customer_email]
+        customer_email: customer_email
       }
     )
 
