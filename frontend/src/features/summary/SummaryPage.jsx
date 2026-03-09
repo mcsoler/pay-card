@@ -5,7 +5,7 @@ import {
   selectProduct, selectCustomer, selectCardToken,
   selectDelivery, selectTransaction, setPaymentStatus, setTransaction
 } from '../../store/checkoutSlice'
-import { createTransaction } from '../../services/apiService'
+import { createTransaction, getTransactionStatus } from '../../services/apiService'
 import CurrencyDisplay from '../../components/CurrencyDisplay'
 import Spinner from '../../components/Spinner'
 import { maskCardNumber } from '../../services/cardValidator'
@@ -28,24 +28,45 @@ export default function SummaryPage() {
     return null
   }
 
+  const FINAL_STATUSES = new Set(['APPROVED', 'DECLINED', 'VOIDED', 'ERROR'])
+  const MAX_POLLS      = 10
+  const POLL_INTERVAL  = parseInt(import.meta.env.VITE_POLL_INTERVAL ?? '2000', 10)
+
+  const pollStatus = async (wompiId) => {
+    for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL))
+      try {
+        const statusResult = await getTransactionStatus(wompiId)
+        if (FINAL_STATUSES.has(statusResult.status)) return statusResult.status
+      } catch {
+        // keep polling on transient errors
+      }
+    }
+    return 'DECLINED'
+  }
+
   const handlePay = async () => {
     setLoading(true)
     setError(null)
     try {
       const result = await createTransaction({
-        product_id:     product.id,
-        card_token:     cardToken,
-        installments:   1,
-        customer_email: customer.email
+        product_id:   product.id,
+        card_token:   cardToken,
+        installments: 1
       })
 
-      dispatch(setTransaction({ ...transaction, ...result }))
-      dispatch(setPaymentStatus(result.status))
+      let finalStatus = result.status
+
+      if (finalStatus === 'PENDING' && result.wompi_id) {
+        finalStatus = await pollStatus(result.wompi_id)
+      }
+
+      dispatch(setTransaction({ ...transaction, ...result, status: finalStatus }))
+      dispatch(setPaymentStatus(finalStatus))
       navigate('/result')
     } catch (err) {
       const message = err?.response?.data?.error || err.message || 'Error al procesar el pago'
       setError(message)
-      // Still navigate to result to show the failure screen
       dispatch(setPaymentStatus('DECLINED'))
       dispatch(setTransaction({ id: null, status: 'DECLINED', amount: product.total_amount }))
       navigate('/result')

@@ -34,6 +34,9 @@ export const createTransaction = (data) =>
 export const updateTransaction = (id, data) =>
   api.put(`/transactions/${id}`, data).then(r => r.data.data)
 
+export const getTransactionStatus = (wompiId) =>
+  api.get(`/transactions/${wompiId}/status`).then(r => r.data.data)
+
 // ── Deliveries ────────────────────────────────────────────────────────────
 export const createDelivery = (data) =>
   api.post('/deliveries', data).then(r => r.data.data)

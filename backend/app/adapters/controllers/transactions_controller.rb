@@ -4,6 +4,7 @@ require_relative 'application_controller'
 require_relative '../../domain/use_cases/create_transaction'
 require_relative '../../domain/use_cases/process_payment'
 require_relative '../../domain/use_cases/update_transaction'
+require_relative '../../domain/use_cases/get_transaction_status'
 require_relative '../repositories/transaction_repository'
 require_relative '../repositories/product_repository'
 require_relative '../repositories/customer_repository'
@@ -33,6 +34,15 @@ class TransactionsController < ApplicationController
       @update_transaction_use_case ||= Domain::UseCases::UpdateTransaction.new(
         transaction_repository: Adapters::Repositories::TransactionRepository.new(db: DB),
         product_repository:     Adapters::Repositories::ProductRepository.new(db: DB)
+      )
+    end
+
+    def get_transaction_status_use_case
+      @get_transaction_status_use_case ||= Domain::UseCases::GetTransactionStatus.new(
+        payment_gateway: Adapters::Http::WompiClient.new(
+          public_key:       ENV.fetch('WOMPI_PUBLIC_KEY'),
+          integrity_secret: ENV.fetch('WOMPI_INTEGRITY_SECRET')
+        )
       )
     end
   end
@@ -71,6 +81,19 @@ class TransactionsController < ApplicationController
       success(pay_result.value!, status: 201)
     else
       halt 422, json(error: pay_result.failure)
+    end
+  end
+
+  # GET /api/transactions/:wompi_id/status — poll Wompi for final transaction status
+  get '/:wompi_id/status' do
+    authenticate!
+
+    result = self.class.get_transaction_status_use_case.call(wompi_id: params[:wompi_id])
+
+    if result.success?
+      success(result.value!)
+    else
+      halt 422, json(error: result.failure)
     end
   end
 

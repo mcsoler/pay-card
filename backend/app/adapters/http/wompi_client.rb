@@ -19,6 +19,13 @@ module Adapters
         @integrity_secret = integrity_secret || ENV.fetch('WOMPI_INTEGRITY_SECRET')
       end
 
+      def transaction_status(wompi_id)
+        response = connection.get("/v1/transactions/#{wompi_id}")
+        handle_response(response)
+      rescue Faraday::Error => e
+        raise Domain::Errors::PaymentError, "Payment gateway error: #{e.message}"
+      end
+
       def charge(amount:, card_token:, customer_email:, installments:, reference:)
         amount_in_cents  = amount.to_i
         acceptance_token = fetch_acceptance_token

@@ -11,4 +11,4 @@ DB = Sequel.connect(
   password: ENV.fetch('DB_PASSWORD', 'postgres')
 )
 
-DatabaseCleaner[:sequel, { db: DB }]
+DatabaseCleaner[:sequel].db = DB

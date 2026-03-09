@@ -7,8 +7,6 @@ import {
 import { clearCheckoutProgress } from '../../services/localStorageService'
 import CurrencyDisplay from '../../components/CurrencyDisplay'
 
-const APPROVED = 'APPROVED'
-
 export default function PaymentResult() {
   const dispatch       = useDispatch()
   const navigate       = useNavigate()
@@ -16,7 +14,8 @@ export default function PaymentResult() {
   const transaction    = useSelector(selectTransaction)
   const product        = useSelector(selectProduct)
 
-  const isApproved = paymentStatus === APPROVED
+  const isApproved = paymentStatus === 'APPROVED'
+  const isPending  = paymentStatus === 'PENDING'
 
   const handleGoBack = () => {
     dispatch(resetCheckout())
@@ -31,12 +30,12 @@ export default function PaymentResult() {
         {/* Status icon */}
         <div className="flex justify-center">
           <div className={`w-24 h-24 rounded-full flex items-center justify-center
-            ${isApproved ? 'bg-success-500/10' : 'bg-danger-500/10'}`}>
+            ${isApproved ? 'bg-success-500/10' : isPending ? 'bg-primary-100' : 'bg-danger-500/10'}`}>
             <span
               data-testid="payment-status-icon"
-              className={`text-5xl ${isApproved ? 'text-success-500' : 'text-danger-500'}`}
+              className={`text-5xl ${isApproved ? 'text-success-500' : isPending ? 'text-primary-500' : 'text-danger-500'}`}
             >
-              {isApproved ? '✓' : '✕'}
+              {isApproved ? '✓' : isPending ? '⏳' : '✕'}
             </span>
           </div>
         </div>
@@ -44,11 +43,13 @@ export default function PaymentResult() {
         {/* Title */}
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-surface-900">
-            {isApproved ? '¡Pago aprobado!' : 'Pago rechazado'}
+            {isApproved ? '¡Pago aprobado!' : isPending ? 'Pago pendiente' : 'Pago rechazado'}
           </h1>
           <p className="text-surface-500 text-sm">
             {isApproved
               ? '¡Gracias por tu compra! Tu pedido está siendo procesado.'
+              : isPending
+              ? 'Tu transacción está verificándose. Recibirás confirmación por correo.'
               : 'Tu transacción fue rechazada. Verifica los datos de tu tarjeta e intenta de nuevo.'}
           </p>
         </div>
@@ -73,8 +74,8 @@ export default function PaymentResult() {
             )}
             <div className="flex justify-between text-sm">
               <span className="text-surface-500">Estado</span>
-              <span className={`font-semibold ${isApproved ? 'text-success-600' : 'text-danger-600'}`}>
-                {isApproved ? 'Aprobado' : 'Rechazado'}
+              <span className={`font-semibold ${isApproved ? 'text-success-600' : isPending ? 'text-primary-600' : 'text-danger-600'}`}>
+                {isApproved ? 'Aprobado' : isPending ? 'Pendiente' : 'Rechazado'}
               </span>
             </div>
             {transaction.wompi_transaction_id && (

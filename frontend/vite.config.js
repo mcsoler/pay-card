@@ -16,6 +16,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/__tests__/setup.js',
+    env: { VITE_POLL_INTERVAL: '0' },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
