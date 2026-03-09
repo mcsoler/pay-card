@@ -85,7 +85,7 @@ describe('SummaryPage — polling behavior', () => {
     expect(apiService.getTransactionStatus).not.toHaveBeenCalled()
   })
 
-  it('calls updateTransaction with the final status after polling resolves', async () => {
+  it('calls updateTransaction with final status and wompi_id after polling resolves', async () => {
     apiService.createTransaction.mockResolvedValue({ status: 'PENDING', wompi_id: 'w-123', transaction_id: 1 })
     apiService.getTransactionStatus.mockResolvedValue({ status: 'APPROVED', id: 'w-123' })
     apiService.updateTransaction.mockResolvedValue({ id: 1, status: 'APPROVED' })
@@ -97,10 +97,10 @@ describe('SummaryPage — polling behavior', () => {
       expect(screen.getByTestId('result-page')).toBeInTheDocument()
     })
 
-    expect(apiService.updateTransaction).toHaveBeenCalledWith(1, { status: 'APPROVED' })
+    expect(apiService.updateTransaction).toHaveBeenCalledWith(1, { status: 'APPROVED', wompi_transaction_id: 'w-123' })
   })
 
-  it('calls updateTransaction with ERROR status when Wompi returns ERROR', async () => {
+  it('calls updateTransaction with ERROR status and wompi_id when Wompi returns ERROR', async () => {
     apiService.createTransaction.mockResolvedValue({ status: 'PENDING', wompi_id: 'w-err', transaction_id: 7 })
     apiService.getTransactionStatus.mockResolvedValue({ status: 'ERROR', id: 'w-err' })
     apiService.updateTransaction.mockResolvedValue({ id: 7, status: 'ERROR' })
@@ -112,7 +112,21 @@ describe('SummaryPage — polling behavior', () => {
       expect(screen.getByTestId('result-page')).toBeInTheDocument()
     })
 
-    expect(apiService.updateTransaction).toHaveBeenCalledWith(7, { status: 'ERROR' })
+    expect(apiService.updateTransaction).toHaveBeenCalledWith(7, { status: 'ERROR', wompi_transaction_id: 'w-err' })
+  })
+
+  it('calls updateTransaction with wompi_id when Wompi returns DECLINED immediately', async () => {
+    apiService.createTransaction.mockResolvedValue({ status: 'DECLINED', wompi_id: 'w-dec', transaction_id: 5 })
+    apiService.updateTransaction.mockResolvedValue({ id: 5, status: 'DECLINED' })
+
+    renderSummary()
+    fireEvent.click(screen.getByRole('button', { name: /pagar/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('result-page')).toBeInTheDocument()
+    })
+
+    expect(apiService.updateTransaction).toHaveBeenCalledWith(5, { status: 'DECLINED', wompi_transaction_id: 'w-dec' })
   })
 
   it('disables pay button while processing', async () => {

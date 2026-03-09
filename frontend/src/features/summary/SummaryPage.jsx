@@ -65,7 +65,10 @@ export default function SummaryPage() {
       dispatch(setPaymentStatus(finalStatus))
 
       if (result.transaction_id) {
-        await updateTransaction(result.transaction_id, { status: finalStatus })
+        await updateTransaction(result.transaction_id, {
+          status:               finalStatus,
+          wompi_transaction_id: result.wompi_id
+        })
       }
 
       navigate('/result')
