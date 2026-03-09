@@ -8,7 +8,7 @@ RUN npm ci
 
 COPY . .
 
-ARG VITE_API_URL=http://localhost:4567/api
+ARG VITE_API_URL=/api
 ARG VITE_WOMPI_PUBLIC_KEY=pub_stagtest_g2u0HQd3ZMh05hsSgTS2lUV8t3s4mOt7
 
 ENV VITE_API_URL=$VITE_API_URL
