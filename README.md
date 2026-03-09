@@ -19,6 +19,7 @@ Plataforma de pagos con tarjeta de crédito integrada con **Wompi (Sandbox)**. P
 11. [Desarrollo local](#desarrollo-local)
 12. [Variables de entorno](#variables-de-entorno)
 13. [Integración Wompi](#integración-wompi)
+14. [Historial de bugs y fixes](#historial-de-bugs-y-fixes)
 
 ---
 
@@ -80,6 +81,7 @@ La lógica de negocio está completamente aislada de los frameworks, la base de 
 │  Delivery      ←── DeliveryRepository  ProcessPayment   │
 │                ←── PaymentGateway      UpdateTransaction │
 │                                        CreateDelivery   │
+│                                        GetTransactionStatus│
 └────────────────────────┬────────────────────────────────┘
                          │ implementan
 ┌────────────────────────▼────────────────────────────────┐
@@ -284,11 +286,21 @@ Frontend                           Backend                        Wompi API
     │── POST /api/transactions ──────▶│                               │
     │   Authorization: Bearer JWT     │                               │
     │   { product_id, card_token,     │                               │
-    │     installments, email }       │                               │
+    │     installments }              │                               │
+    │                                 │── GET /merchants/:pub_key ────▶│
+    │                                 │◀─ { acceptance_token } ───────│
     │                                 │── POST /transactions ─────────▶│
-    │                                 │   { amount, token, email }    │
-    │                                 │◀─ { id, status: APPROVED } ──│
-    │◀─ { status, wompi_id } ─────────│                               │
+    │                                 │   { amount, token, email,     │
+    │                                 │     acceptance_token,         │
+    │                                 │     signature (SHA256) }      │
+    │                                 │◀─ { id, status: PENDING } ───│
+    │◀─ { status: PENDING, wompi_id }─│                               │
+    │                                 │                               │
+    │   (polling hasta estado final)  │                               │
+    │── GET /transactions/:id/status ▶│                               │
+    │                                 │── GET /transactions/:id ──────▶│
+    │                                 │◀─ { status: APPROVED } ───────│
+    │◀─ { status: APPROVED } ─────────│                               │
     │                                 │                               │
     │   (webhook opcional)            │◀── POST /api/webhooks/wompi ──│
     │                                 │    confirmación asíncrona     │
@@ -307,6 +319,7 @@ Frontend                           Backend                        Wompi API
 | `PUT` | `/api/products/:id/stock` | JWT | Actualiza stock (uso interno) |
 | `POST` | `/api/customers` | No | Registra cliente → retorna JWT |
 | `POST` | `/api/transactions` | JWT | Crea transacción PENDING + procesa con Wompi |
+| `GET` | `/api/transactions/:wompi_id/status` | JWT | Consulta estado actual en Wompi (para polling) |
 | `PUT` | `/api/transactions/:id` | JWT | Actualiza resultado de transacción (idempotente) |
 | `POST` | `/api/deliveries` | JWT | Registra entrega (solo para TX aprobadas) |
 | `POST` | `/api/webhooks/wompi` | Firma SHA256 | Confirmación asíncrona de Wompi |
@@ -359,6 +372,13 @@ curl -X POST http://localhost:4567/api/transactions \
     "installments":   1,
     "customer_email": "juan@ejemplo.com"
   }'
+```
+
+**Consultar estado de transacción en Wompi (polling):**
+```bash
+curl http://localhost:4567/api/transactions/15113-1773033068-12060/status \
+  -H "Authorization: Bearer <JWT>"
+# → { "data": { "id": "15113-...", "status": "APPROVED" } }
 ```
 
 **Actualizar transacción:**
@@ -510,7 +530,7 @@ spec/
 │   │   ├── customer_spec.rb
 │   │   ├── transaction_spec.rb
 │   │   └── delivery_spec.rb
-│   └── use_cases/         ← 40 specs
+│   └── use_cases/         ← 44 specs
 │       ├── get_products_spec.rb
 │       ├── get_product_spec.rb
 │       ├── create_customer_spec.rb
@@ -518,11 +538,16 @@ spec/
 │       ├── process_payment_spec.rb
 │       ├── update_transaction_spec.rb
 │       ├── create_delivery_spec.rb
+│       ├── get_transaction_status_spec.rb  ← NEW
 │       └── jwt_service_spec.rb
 └── adapters/
     ├── repositories/      ← 12 specs
-    ├── http/              ←  4 specs (WebMock)
-    └── controllers/       ←  8 specs (Rack::Test)
+    ├── http/              ←  9 specs (WebMock)
+    │   ├── wompi_client_spec.rb
+    │   └── wompi_client_transaction_status_spec.rb  ← NEW
+    └── controllers/       ← 12 specs (Rack::Test)
+        ├── transactions_controller_spec.rb
+        └── transactions_status_controller_spec.rb   ← NEW
 ```
 
 **Ejecutar tests:**
@@ -546,15 +571,17 @@ open coverage/index.html
 ```
 src/__tests__/
 ├── store/
-│   └── checkoutSlice.test.js     ← 14 tests (reducer + selectors)
+│   └── checkoutSlice.test.js           ← 14 tests (reducer + selectors)
 ├── services/
-│   ├── cardValidator.test.js     ← 10 tests (Luhn, VISA/MC, format)
-│   └── localStorage.test.js     ←  5 tests (sin cardToken)
+│   ├── cardValidator.test.js           ← 10 tests (Luhn, VISA/MC, format)
+│   └── localStorage.test.js           ←  5 tests (sin cardToken)
 └── features/
-    ├── product/ProductPage.test.jsx      ←  8 tests
-    ├── checkout/CheckoutModal.test.jsx   ←  9 tests
-    ├── summary/SummaryPage.test.jsx      ← 10 tests
-    └── payment/PaymentResult.test.jsx    ←  5 tests
+    ├── product/ProductPage.test.jsx            ←  8 tests
+    ├── checkout/CheckoutModal.test.jsx         ←  9 tests
+    ├── summary/SummaryPage.test.jsx            ← 10 tests
+    ├── summary/SummaryPage.polling.test.jsx    ←  4 tests  ← NEW
+    ├── payment/PaymentResult.test.jsx          ←  5 tests
+    └── payment/PaymentResult.pending.test.jsx  ←  4 tests  ← NEW
 ```
 
 **Ejecutar tests:**
@@ -733,10 +760,11 @@ npm run dev
 
 ### Frontend (variables Vite)
 
-| Variable | Descripción |
-|---|---|
-| `VITE_API_URL` | URL base del backend API |
-| `VITE_WOMPI_PUBLIC_KEY` | Clave pública Wompi para tokenización |
+| Variable | Descripción | Default |
+|---|---|---|
+| `VITE_API_URL` | URL base del backend API | `/api` |
+| `VITE_WOMPI_PUBLIC_KEY` | Clave pública Wompi para tokenización | `pub_stagtest_...` |
+| `VITE_POLL_INTERVAL` | Intervalo de polling de estado en ms | `2000` (0 en tests) |
 
 ---
 
@@ -749,6 +777,7 @@ Todas las operaciones se realizan en el entorno **sandbox** (sin dinero real):
 - **API URL:** `https://api-sandbox.co.uat.wompi.dev/v1`
 - **Tokenización de tarjeta (frontend):** `POST /v1/tokens/cards`
 - **Crear transacción (backend):** `POST /v1/transactions`
+- **Consultar estado de transacción (backend):** `GET /v1/transactions/:id`
 
 ### Flujo de tokenización
 
@@ -786,6 +815,94 @@ La firma se valida con `SHA256(timestamp + event + events_secret)` y se compara 
 
 ---
 
+## Manejo de estado PENDING y polling
+
+### Por qué Wompi devuelve PENDING
+
+Wompi procesa los pagos de forma **asíncrona**. Al crear una transacción, el estado inicial siempre es `PENDING`. El estado final (`APPROVED`, `DECLINED`, etc.) se resuelve en segundos y se notifica mediante:
+
+1. **Webhook** (producción): `POST /api/webhooks/wompi` — Wompi envía el resultado cuando el endpoint es accesible públicamente.
+2. **Polling activo** (sandbox/desarrollo): el frontend consulta el estado repetidamente hasta obtener un resultado final.
+
+### Flujo de polling
+
+```
+SummaryPage                  Backend                    Wompi
+     │                          │                          │
+     │── POST /transactions ───▶│── POST /transactions ───▶│
+     │◀─ { status: PENDING,     │◀─ { status: PENDING } ──│
+     │    wompi_id: "15113-..." }│                          │
+     │                          │                          │
+     │   ┌─ polling loop ──┐    │                          │
+     │── GET /transactions/ ──▶│── GET /transactions/ ───▶│
+     │   │  :wompi_id/status│   │   :wompi_id             │
+     │◀─ │ { status: PENDING}   │◀─ { status: PENDING } ──│
+     │   │  (espera 2s)    │    │                          │
+     │── GET /transactions/ ──▶│── GET /transactions/ ───▶│
+     │   │  :wompi_id/status│   │   :wompi_id             │
+     │◀─ │{ status: APPROVED}   │◀─ { status: APPROVED } ─│
+     │   └─────────────────┘    │                          │
+     │                          │                          │
+     │── navega a /result ──────│                          │
+```
+
+### Parámetros del polling
+
+| Parámetro | Valor | Configuración |
+|---|---|---|
+| Intervalo entre polls | 2000 ms | `VITE_POLL_INTERVAL` (0 en tests) |
+| Máximo de intentos | 10 | `MAX_POLLS` en `SummaryPage.jsx` |
+| Estados que detienen el polling | `APPROVED`, `DECLINED`, `VOIDED`, `ERROR` | `FINAL_STATUSES` |
+| Comportamiento al agotar intentos | Navega a resultado con estado `DECLINED` | — |
+
+### Estados de la pantalla de resultado
+
+| Estado Wompi | Pantalla mostrada |
+|---|---|
+| `APPROVED` | ✓ **¡Pago aprobado!** — en verde |
+| `DECLINED` | ✕ **Pago rechazado** — en rojo |
+| `PENDING` | ⏳ **Pago pendiente** — en azul (si se agota el polling sin resolución) |
+
+---
+
+## Historial de bugs y fixes
+
+### fix: `customer_email` nulo al cobrar con Wompi
+**Rama:** `fix/customer-email-null-on-payment`
+
+**Síntoma:** Wompi respondía `INPUT_VALIDATION_ERROR: customer_email No está presente`. Todo pago resultaba rechazado.
+
+**Causa raíz:** `TransactionsController` usaba `body_params[:customer_email]`, pero el frontend nunca envía ese campo en el body del `POST /api/transactions`.
+
+**Fix:** El controlador ahora consulta la base de datos con `current_customer_id` del JWT y obtiene el email directamente del registro del cliente:
+```ruby
+customer       = Adapters::Repositories::CustomerRepository.new(db: DB).find_by_id(current_customer_id)
+customer_email = customer&.email
+```
+
+---
+
+### fix: pago siempre aparece como "Rechazado" aunque Wompi devuelva PENDING
+**Rama:** `feature/transaction-status-polling`
+
+**Síntoma:** El usuario veía "Pago rechazado" inmediatamente después de pagar, aunque el pago hubiera pasado correctamente por Wompi.
+
+**Causa raíz:** Wompi devuelve `PENDING` como estado inicial (procesamiento asíncrono). El componente `PaymentResult` mostraba "Pago rechazado" para cualquier estado distinto de `APPROVED`.
+
+**Fix:** Se implementó un mecanismo de polling en `SummaryPage` y se añadió un endpoint backend para consultar el estado en Wompi:
+- **Backend:** `GET /api/transactions/:wompi_id/status` → `WompiClient#transaction_status` → `GET /v1/transactions/:id`
+- **Frontend:** Después de recibir `PENDING`, `SummaryPage` hace polling cada 2s hasta 10 veces
+- **UI:** `PaymentResult` ahora distingue `APPROVED` (verde), `PENDING` (azul) y `DECLINED` (rojo)
+
+---
+
+### fix: logs de debug en WompiClient
+**Rama:** `fix/remove-debug-logging`
+
+**Descripción:** Se eliminaron los `warn` de debug que registraban el payload completo y la respuesta de Wompi en producción (añadidos temporalmente durante el diagnóstico del DECLINED).
+
+---
+
 ## Estrategia de ramas
 
 El proyecto usa una rama por funcionalidad con Pull Requests:
@@ -798,6 +915,9 @@ El proyecto usa una rama por funcionalidad con Pull Requests:
 | `feature/backend-adapters` | Repositorios, WompiClient, controllers |
 | `feature/frontend-setup` | Redux, servicios, infraestructura de tests |
 | `feature/frontend-screens` | Las 5 pantallas del flujo de pago |
+| `fix/customer-email-null-on-payment` | Corrección de `customer_email` nulo al cobrar |
+| `fix/remove-debug-logging` | Eliminación de `warn` de debug en WompiClient |
+| `feature/transaction-status-polling` | Polling de estado + endpoint de consulta a Wompi |
 
 ---
 
