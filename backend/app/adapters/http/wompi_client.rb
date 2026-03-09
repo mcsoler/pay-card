@@ -24,16 +24,18 @@ module Adapters
         acceptance_token = fetch_acceptance_token
         integrity_sig    = build_integrity_signature(reference, amount_in_cents, 'COP')
 
+        payload = build_payload(
+          amount_in_cents:  amount_in_cents,
+          card_token:       card_token,
+          customer_email:   customer_email,
+          installments:     installments,
+          reference:        reference,
+          acceptance_token: acceptance_token,
+          integrity:        integrity_sig
+        )
+
         response = connection.post('/v1/transactions') do |req|
-          req.body = build_payload(
-            amount_in_cents:  amount_in_cents,
-            card_token:       card_token,
-            customer_email:   customer_email,
-            installments:     installments,
-            reference:        reference,
-            acceptance_token: acceptance_token,
-            integrity:        integrity_sig
-          ).to_json
+          req.body = payload.to_json
         end
 
         handle_response(response)
