@@ -39,8 +39,8 @@ class ApplicationController < Sinatra::Base
   # ── JSON helpers ──────────────────────────────────────────────────────────
   def parsed_body
     @parsed_body ||= begin
-      body.rewind
-      JSON.parse(body.read, symbolize_names: true)
+      request.body.rewind
+      JSON.parse(request.body.read, symbolize_names: true)
     rescue JSON::ParserError
       {}
     end
