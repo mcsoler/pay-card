@@ -8,7 +8,8 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 COPY Gemfile Gemfile.lock* ./
-RUN bundle install --without development test
+RUN bundle config set --local without 'development test' && \
+    bundle install
 
 COPY . .
 
