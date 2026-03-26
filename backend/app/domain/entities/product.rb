@@ -5,12 +5,12 @@ require_relative '../errors'
 module Domain
   module Entities
     class Product
-      attr_reader :id, :name, :description, :price, :base_fee, :delivery_fee
+      attr_reader :id, :name, :description, :price, :base_fee, :delivery_fee, :iva
       attr_accessor :stock, :errors
 
       VALID_STATUSES = %w[].freeze
 
-      def initialize(id:, name:, description:, price:, stock:, base_fee:, delivery_fee:)
+      def initialize(id:, name:, description:, price:, stock:, base_fee:, delivery_fee:, iva:)
         @id           = id
         @name         = name
         @description  = description
@@ -18,6 +18,7 @@ module Domain
         @stock        = stock
         @base_fee     = base_fee
         @delivery_fee = delivery_fee
+        @iva          = iva
         @errors       = []
       end
 
@@ -26,7 +27,7 @@ module Domain
       end
 
       def total_amount
-        price.to_f + base_fee.to_f + delivery_fee.to_f
+        price.to_f + iva.to_f + base_fee.to_f + delivery_fee.to_f
       end
 
       def decrease_stock!
@@ -50,6 +51,7 @@ module Domain
           description:  description,
           price:        price,
           stock:        stock,
+          iva:          iva,
           base_fee:     base_fee,
           delivery_fee: delivery_fee
         }

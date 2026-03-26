@@ -11,6 +11,7 @@ products = [
                   'Pantalla Liquid Retina XDR de 14.2". Batería de hasta 18 horas.',
     price:        8_999_000,
     stock:        10,
+    iva:          1_709_810,
     base_fee:     269_970,
     delivery_fee: 50_000
   },
@@ -20,6 +21,7 @@ products = [
                   'Titanio grado aeroespacial. iOS 17.',
     price:        4_599_000,
     stock:        25,
+    iva:          873_810,
     base_fee:     137_970,
     delivery_fee: 30_000
   },
@@ -29,6 +31,7 @@ products = [
                   'Autonomía de 30 horas. Micrófono con IA para llamadas cristalinas.',
     price:        1_199_000,
     stock:        50,
+    iva:          227_810,
     base_fee:     35_970,
     delivery_fee: 20_000
   },
@@ -38,6 +41,7 @@ products = [
                   '12GB RAM, 256GB almacenamiento. IP68 resistente al agua.',
     price:        3_499_000,
     stock:        15,
+    iva:          664_810,
     base_fee:     104_970,
     delivery_fee: 40_000
   },
@@ -47,6 +51,7 @@ products = [
                   '144Hz, HDR10, compatible con AMD FreeSync Premium.',
     price:        2_299_000,
     stock:        8,
+    iva:          436_810,
     base_fee:     68_970,
     delivery_fee: 35_000
   }

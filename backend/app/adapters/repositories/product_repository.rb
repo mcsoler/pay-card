@@ -34,6 +34,7 @@ module Adapters
           description:  row[:description],
           price:        row[:price].to_f,
           stock:        row[:stock].to_i,
+          iva:          row[:iva].to_f,
           base_fee:     row[:base_fee].to_f,
           delivery_fee: row[:delivery_fee].to_f
         )

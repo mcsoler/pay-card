@@ -56,6 +56,7 @@ class ProductsController < ApplicationController
       description:  p.description,
       price:        p.price,
       stock:        p.stock,
+      iva:          p.iva,
       base_fee:     p.base_fee,
       delivery_fee: p.delivery_fee,
       total_amount: p.total_amount,
