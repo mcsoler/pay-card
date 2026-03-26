@@ -119,6 +119,10 @@ export default function SummaryPage() {
               <CurrencyDisplay amount={product.price} className="text-surface-700" />
             </div>
             <div className="flex justify-between text-sm">
+              <span className="text-surface-500">IVA (19%)</span>
+              <CurrencyDisplay amount={Math.round(product.price * 0.19)} className="text-surface-700" />
+            </div>
+            <div className="flex justify-between text-sm">
               <span className="text-surface-500">Tarifa base</span>
               <CurrencyDisplay amount={product.base_fee} className="text-surface-700" />
             </div>
